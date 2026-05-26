@@ -22,6 +22,12 @@ enum class SelectionArrowType{
     DOWN,
 };
 
+const int RIGHT_ARROW_POSITION_COUNT = 3;
+enum class SelectionArrowRightPosition{
+    BOX_NAME,
+    BOX_SPACES,
+    NEWEST_30
+};
 
 class SelectionArrowDetector : public StaticScreenDetector{
 public:
@@ -32,11 +38,16 @@ public:
         const ImageFloatBox& box
     );
 
+    static ImageFloatBox arrow_box_for_position(SelectionArrowRightPosition position);
+
     const ImageFloatBox& last_detected() const{ return m_last_detected; }
 
     virtual void make_overlays(VideoOverlaySet& items) const override;
 
     virtual bool detect(const ImageViewRGB32& screen) override;
+
+    std::vector<ImageFloatBox> down_arrow_positions() const{ return m_down_arrow_positions; }
+    std::vector<ImageFloatBox> right_arrow_positions() const{ return m_right_arrow_positions; }
 
 private:
     friend class SelectionArrowWatcher;
@@ -48,7 +59,11 @@ private:
 
     ImageFloatBox m_last_detected;
     std::optional<OverlayBoxScope> m_last_detected_box;
+
+    std::vector<ImageFloatBox> m_down_arrow_positions;
+    std::vector<ImageFloatBox> m_right_arrow_positions;
 };
+
 class SelectionArrowWatcher : public DetectorToFinder<SelectionArrowDetector>{
 public:
     SelectionArrowWatcher(

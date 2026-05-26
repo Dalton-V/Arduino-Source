@@ -32,12 +32,39 @@
 #include "PokemonHome/Inference/PokemonHome_OriginMarkReader.h"
 #include "PokemonHome/Inference/PokemonHome_TeraTypeReader.h"
 #include "PokemonHome_BoxNavigation.h"
+#include "PokemonHome/Inference/PokemonHome_ButtonDetector.h"
+#include "PokemonHome/Inference/PokemonHome_SelectionArrowDetector.h"
 
 namespace PokemonAutomation{
 namespace NintendoSwitch{
 namespace PokemonHome{
 using namespace Pokemon;
 
+namespace{
+
+int find_position_index(ImageFloatBox dexted_box, const std::vector<ImageFloatBox>& possible_locations){
+    size_t current_index = 0;
+    double closest_dist = std::numeric_limits<double>::max();
+    double detected_cx = dexted_box.x + dexted_box.width / 2.0;
+    double detected_cy = dexted_box.y + dexted_box.height / 2.0;
+    for (size_t i = 0; i < possible_locations.size(); i++){
+        ImageFloatBox pos_box = possible_locations[i];
+        double cx = pos_box.x + pos_box.width / 2.0;
+        double cy = pos_box.y + pos_box.height / 2.0;
+        double dx = detected_cx - cx;
+        double dy = detected_cy - cy;
+        double dist = dx * dx + dy * dy;
+        if (dist < closest_dist){
+            closest_dist = dist;
+            current_index = i;
+        }
+    }
+
+    return static_cast<int>(current_index);
+}
+
+
+}
 
 // Move the red cursor to the first slot of the box
 // If the cursor is not at the first slot, move the cursor to the left and up one row at a time until it is at the first slot. 
@@ -162,6 +189,168 @@ bool go_to_first_slot(
     context.wait_for_all_requests();
     return dest_cursor;
 }
+
+//[[nodiscard]] BoxCursor move_cursor_to(
+//    SingleSwitchProgramEnvironment& env,
+//    ProControllerContext& context,
+//    const BoxCursor& cur_cursor,
+//    const BoxCursor& dest_cursor
+//){
+//
+//}
+//
+
+BoxCursor open_box_spaces(
+    SingleSwitchProgramEnvironment& env,
+    ProControllerContext& context
+){
+    SelectionArrowWatcher right_arrow(COLOR_RED, &env.console.overlay(), SelectionArrowType::RIGHT, { 0.101, 0.080, 0.252, 0.703 });
+    SelectionArrowWatcher down_arrow(COLOR_RED, &env.console.overlay(), SelectionArrowType::DOWN, { 0.025, 0.131, 0.459, 0.566 });
+
+    WallClock start = current_time();
+    while (true){
+
+        if (current_time() - start > std::chrono::seconds(60)){
+            OperationFailedException::fire(
+                ErrorReport::SEND_ERROR_REPORT,
+                "open_box_spaces(): Unable to determine current box after 1 minute.",
+                env.console
+            );
+        }
+
+        env.log("Navigating to box spaces...");
+        int ret = wait_until(env.console, context, Seconds(5), { right_arrow, down_arrow });
+        
+        int current_index = 0;
+        int current_row;
+        int current_col;
+        switch (ret){
+        case 0: {
+            env.log("Detected right selection arrow, navigating to box spaces.");
+
+            current_index = find_position_index(right_arrow.last_detected(), right_arrow.right_arrow_positions());
+            
+            if (current_index < 0 || current_index > 2){
+                env.log("Detected right selection arrow at unexpected position, retrying.");
+                pbf_mash_button(context, BUTTON_B, 500ms);
+                context.wait_for_all_requests();
+                continue;
+            }
+
+            SelectionArrowRightPosition right_arrow_pos = static_cast<SelectionArrowRightPosition>(current_index);
+            switch (right_arrow_pos){
+            case SelectionArrowRightPosition::BOX_SPACES:
+                pbf_press_button(context, BUTTON_A, 150ms, 150ms);
+                context.wait_for_all_requests();
+                break;
+            case SelectionArrowRightPosition::BOX_NAME:
+                pbf_press_dpad(context, DPAD_DOWN, 150ms, 150ms);
+                pbf_press_button(context, BUTTON_A, 150ms, 150ms);
+                context.wait_for_all_requests();
+                break;
+            case SelectionArrowRightPosition::NEWEST_30:
+                pbf_press_dpad(context, DPAD_LEFT, 150ms, 150ms);
+                pbf_press_button(context, BUTTON_A, 150ms, 150ms);
+                context.wait_for_all_requests();
+                break;
+            }
+            break;
+        }
+        case 1: {
+            env.log("Detected down selection arrow, navigating to box spaces.");
+
+            current_index = find_position_index(down_arrow.last_detected(), down_arrow.down_arrow_positions());
+            current_row = current_index / 6;
+            current_col = current_index % 6;
+
+            env.log("Current index: " + std::to_string(current_index));
+            env.log("Detected down arrow at row " + std::to_string(current_row) + " col " + std::to_string(current_col));
+
+            // The detection grid for the down arrow is 5x6 but there is a button above the grid that can be travelled over. 
+            // Add one to include that distance in the following calculation.
+            ++current_row;
+
+            int total_rows = 7;
+            int destination_index = 6; // Box Spaces is at the bottom
+            int up = (current_row - destination_index + total_rows) % total_rows;
+            int down = (destination_index - current_row + total_rows) % total_rows;
+
+            if (up <= down){
+                for (int i = 0; i < up; i++){
+                    pbf_press_dpad(context, DPAD_UP, 150ms, 150ms);
+                }
+            } else{
+                for (int i = 0; i < down; i++){
+                    pbf_press_dpad(context, DPAD_DOWN, 150ms, 150ms);
+                }
+            }
+
+            if (current_col > 4){
+                pbf_press_dpad(context, DPAD_LEFT, 150ms, 150ms);
+            }
+
+            pbf_press_button(context, BUTTON_A, 150ms, 150ms);
+            context.wait_for_all_requests();
+            break;
+        }
+        default:
+            env.log("Unable to detect selection arrow, retrying.");
+            pbf_mash_button(context, BUTTON_B, 500ms);
+            context.wait_for_all_requests();
+            continue;
+        }
+
+        ButtonWatcher b_button_watcher(COLOR_RED, ButtonType::ButtonB, { 0.183, 0.714, 0.032, 0.055 }, &env.console.overlay());
+
+        ret = wait_until(env.console, context, Seconds(5), { b_button_watcher });
+
+        if (ret != 0){
+            env.log("Unable to detect box spaces page, retrying.");
+            pbf_mash_button(context, BUTTON_B, 500ms);
+            context.wait_for_all_requests();
+            continue;
+        }
+
+        if (!down_arrow.detect(env.console.video().snapshot())){
+            env.log("Unable to detect down arrow after opening box spaces, retrying.");
+            pbf_mash_button(context, BUTTON_B, 500ms);
+            context.wait_for_all_requests();
+            continue;
+        }
+
+        current_index = find_position_index(down_arrow.last_detected(), down_arrow.down_arrow_positions());
+
+        current_row = current_index / 6;
+        current_col = current_index % 6;
+
+        if (current_row == 0){
+            env.log("Cursor is on the top row, moving down to read the page number.");
+            pbf_press_dpad(context, DPAD_DOWN, 150ms, 150ms);
+            context.wait_for_all_requests();
+        }
+
+        ImageFloatBox page_number_box(0.277, 0.101, 0.013, 0.042);
+        const int page_number = OCR::read_number_waterfill(env.console, extract_box_reference(env.console.video().snapshot(), page_number_box), 0xff505050, 0xff787878);
+        if (page_number <= 0 || page_number > 7){
+            OperationFailedException::fire(
+                ErrorReport::SEND_ERROR_REPORT,
+                "open_box_spaces: Unable to read a correct page number, found: " + std::to_string(page_number),
+                env.console
+            );
+        }
+
+        if (current_row == 0){
+            env.log("Moving back up to the top row after reading page number.");
+            pbf_press_dpad(context, DPAD_UP, 150ms, 150ms);
+            context.wait_for_all_requests();
+        }
+
+        return BoxCursor(page_number, current_row, current_col);
+    }
+    
+    return BoxCursor(0,0,0);
+}
+
 
 // Read current screen to find occupied and empty slots in the box.
 // Add a placeholder value for each slot in order into `boxes_data`. For empty slot the value is just std::nullopt, while

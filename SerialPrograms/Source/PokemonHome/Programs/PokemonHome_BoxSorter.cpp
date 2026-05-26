@@ -195,6 +195,15 @@ void BoxSorter::program(SingleSwitchProgramEnvironment& env, ProControllerContex
         throw UserSetupError(env.console, "At least one sorting method selection needs to be made!");
     }
 
+    auto box_cursor = open_box_spaces(env, context);
+    std::ostringstream sss;
+
+    sss << box_cursor;
+   
+    env.log(sss.str());
+    pbf_wait(context, 5000ms);
+    context.wait_for_all_requests();
+
     BoxSorter_Descriptor::Stats& stats = env.current_stats< BoxSorter_Descriptor::Stats>();
 
     // vector that will store data for each slot

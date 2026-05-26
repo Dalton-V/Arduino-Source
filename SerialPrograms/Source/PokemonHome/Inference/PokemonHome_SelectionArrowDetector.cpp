@@ -60,7 +60,34 @@ SelectionArrowDetector::SelectionArrowDetector(
     , m_overlay(overlay)
     , m_type(type)
     , m_arrow_box(box)
-{}
+{
+    for (size_t i = 0; i < RIGHT_ARROW_POSITION_COUNT; i++){
+        m_right_arrow_positions.push_back(arrow_box_for_position(static_cast<SelectionArrowRightPosition>(i)));
+    }
+
+    for (size_t row = 0; row < 6; row++){
+        double y = (row == 0 ? 0.133 : 0.133 + row * 0.12);
+        for (size_t col = 0; col < 6; col++){
+            double x = 0.058 + col * 0.06;
+            ImageFloatBox arrow_box(x, y, 0.04, 0.055);
+            m_down_arrow_positions.emplace_back(arrow_box);
+        }
+    }
+}
+
+ImageFloatBox SelectionArrowDetector::arrow_box_for_position(SelectionArrowRightPosition position){
+    switch (position){
+    case SelectionArrowRightPosition::BOX_NAME:
+        return ImageFloatBox(0.098, 0.081, 0.050, 0.080);
+    case SelectionArrowRightPosition::BOX_SPACES:
+        return ImageFloatBox(0.158, 0.695, 0.050, 0.080);
+    case SelectionArrowRightPosition::NEWEST_30:
+        return ImageFloatBox(0.309, 0.701, 0.050, 0.080);
+    default:
+        throw InternalProgramError(nullptr, PA_CURRENT_FUNCTION, "Invalid enum.");
+    }
+}
+
 void SelectionArrowDetector::make_overlays(VideoOverlaySet& items) const{
     items.add(m_color, m_arrow_box);
 }

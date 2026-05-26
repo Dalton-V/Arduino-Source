@@ -36,6 +36,12 @@ bool go_to_first_slot(
     Milliseconds GAME_DELAY
 );
 
+// Navigate to the box spaces screen and return the cursor position of the currently selected box space.
+Pokemon::BoxCursor open_box_spaces(
+    SingleSwitchProgramEnvironment& env,
+    ProControllerContext& context
+);
+
 // Read current screen to find occupied and empty slots in the box.
 // Returns the (row, col) index of the first pokemon (aka non-empty) slot in the box.
 std::array<size_t, 2> find_occupied_slots_in_box(
