@@ -190,15 +190,58 @@ bool go_to_first_slot(
     return dest_cursor;
 }
 
-//[[nodiscard]] BoxCursor move_cursor_to(
-//    SingleSwitchProgramEnvironment& env,
-//    ProControllerContext& context,
-//    const BoxCursor& cur_cursor,
-//    const BoxCursor& dest_cursor
-//){
-//
-//}
-//
+[[nodiscard]] BoxCursor move_cursor_to(
+    SingleSwitchProgramEnvironment& env,
+    ProControllerContext& context,
+    const BoxCursor& cur_cursor,
+    const BoxCursor& dest_cursor
+){
+    std::ostringstream ss;
+    ss << "Moving cursor from " << cur_cursor << " to " << dest_cursor;
+    env.console.log(ss.str());
+
+    int total_boxes = 200;
+    int left = (cur_cursor.column - dest_cursor.column + total_boxes) % total_boxes;
+    int right = (dest_cursor.column - cur_cursor.column + total_boxes) % total_boxes;
+
+    if (left > 5 && right > 5){
+        // Navigate through pages
+        BoxCursor page_box_cursor = open_box_spaces(env, context);
+    }
+
+    if (cur_cursor.box == dest_cursor.box){
+        int total_rows = BOX_ROWS + 2;
+        int current_row = cur_cursor.row + 1;
+        int destination_row = dest_cursor.row + 1;
+        int up = (current_row - destination_row + total_rows) % total_rows;
+        int down = (destination_row - current_row + total_rows) % total_rows;
+
+        if (up <= down){
+            for (int i = 0; i < up; i++){
+                pbf_press_dpad(context, DPAD_UP, 150ms, 150ms);
+            }
+        } else{
+            for (int i = 0; i < down; i++){
+                pbf_press_dpad(context, DPAD_DOWN, 150ms, 150ms);
+            }
+        }
+
+        int total_cols = BOX_COLS;
+        left = (cur_cursor.column - dest_cursor.column + total_cols) % total_cols;
+        right = (dest_cursor.column - cur_cursor.column + total_cols) % total_cols;
+
+        if (left <= right){
+            for (int i = 0; i < left; i++){
+                pbf_press_dpad(context, DPAD_LEFT, 150ms, 150ms);
+            }
+        } else{
+            for (int i = 0; i < right; i++){
+                pbf_press_dpad(context, DPAD_RIGHT, 150ms, 150ms);
+            }
+        }
+    }
+}
+
 
 BoxCursor open_box_spaces(
     SingleSwitchProgramEnvironment& env,
