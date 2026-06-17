@@ -696,7 +696,16 @@ bool exit_wild_battle(ConsoleHandle& console, ProControllerContext& context, boo
 
 void open_party_menu_from_overworld(ConsoleHandle& console, ProControllerContext& context, StartMenuContext menu_context){
     uint16_t errors = 0;
-    bool start_menu_is_open = false;
+
+    PartyMenuDetector party_menu_detector(COLOR_RED);
+    if (party_menu_detector.detect(console.video().snapshot())){
+        console.log("Already in party menu.");
+        return;
+    }
+
+    StartMenuDetector start_menu_detector(COLOR_RED);
+    bool start_menu_is_open = start_menu_detector.detect(console.video().snapshot());
+
     while (true){
         if (errors > 5){
             OperationFailedException::fire(
@@ -708,7 +717,7 @@ void open_party_menu_from_overworld(ConsoleHandle& console, ProControllerContext
 
         context.wait_for_all_requests();
         if (!start_menu_is_open){
-            open_start_menu(console, context); // This is unavoidable since we cannot detect the overworld.
+            open_start_menu(console, context);
             start_menu_is_open = true;
         }
 
@@ -762,7 +771,7 @@ void open_bag_from_overworld(ConsoleHandle& console, ProControllerContext& conte
         if (errors > 5){
             OperationFailedException::fire(
                 ErrorReport::SEND_ERROR_REPORT,
-                "open_party_menu_from_overworld(): Failed to open party menu 5 times in a row.",
+                "open_bag_from_overworld(): Failed to open bag 5 times in a row.",
                 console
             );
         }

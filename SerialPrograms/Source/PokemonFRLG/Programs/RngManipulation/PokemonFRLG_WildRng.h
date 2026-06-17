@@ -87,9 +87,12 @@ private:
     SimpleIntegerOption<uint64_t> MAX_BALL_THROWS;
     SimpleIntegerOption<uint8_t> PROFILE;
 
+    BooleanCheckBoxOption STOP_ON_HELD_ITEM;
+
     BooleanCheckBoxOption TAKE_VIDEO;
     GoHomeWhenDoneOption GO_HOME_WHEN_DONE;
     EventNotificationOption NOTIFICATION_SHINY;
+    EventNotificationOption NOTIFICATION_HELD_ITEM;
     EventNotificationOption NOTIFICATION_STATUS_UPDATE;
     EventNotificationsOption NOTIFICATIONS;
 };

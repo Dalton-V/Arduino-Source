@@ -14,6 +14,7 @@
 #include "Pokemon/Pokemon_Strings.h"
 #include "NintendoSwitch/Commands/NintendoSwitch_Commands_PushButtons.h"
 #include "NintendoSwitch/NintendoSwitch_Settings.h"
+#include "PokemonFRLG/Inference/Menus/PokemonFRLG_PartyHeldItemDetector.h"
 #include "PokemonFRLG/PokemonFRLG_Navigation.h"
 #include "PokemonFRLG_RngNavigation.h"
 #include "PokemonFRLG_HardReset.h"
@@ -46,16 +47,19 @@ struct WildRng_Descriptor::Stats : public StatsTracker{
         : resets(m_stats["Resets"])
         , shinies(m_stats["Shinies"])
         , nonshiny(m_stats["Non-Shiny Hits"])
+        , items_found(m_stats["Items Found"])
         , errors(m_stats["Errors"])
     {
         m_display_order.emplace_back("Resets");
         m_display_order.emplace_back("Shinies");
         m_display_order.emplace_back("Non-Shiny Hits", HIDDEN_IF_ZERO);
+        m_display_order.emplace_back("Items Found", HIDDEN_IF_ZERO);
         m_display_order.emplace_back("Errors", HIDDEN_IF_ZERO);
     }
     std::atomic<uint64_t>& resets;
     std::atomic<uint64_t>& shinies;
     std::atomic<uint64_t>& nonshiny;
+    std::atomic<uint64_t>& items_found;
     std::atomic<uint64_t>& errors;
 };
 std::unique_ptr<StatsTracker> WildRng_Descriptor::make_stats() const{
@@ -212,6 +216,12 @@ WildRng::WildRng()
         LockMode::LOCK_WHILE_RUNNING,
         0, 0, 8 // default, min, max
     )
+    , STOP_ON_HELD_ITEM(
+        "<b>Stop on Held Item:</b><br>"
+        "Stop the program if the caught Pokemon is holding an item.",
+        LockMode::LOCK_WHILE_RUNNING,
+        false
+    )
     , TAKE_VIDEO(
         "<b>Take Video:</b><br>Record a video when the shiny is found.", 
         LockMode::LOCK_WHILE_RUNNING, 
@@ -223,9 +233,15 @@ WildRng::WildRng()
         true, true, ImageAttachmentMode::JPG,
         {"Notifs", "Showcase"}
     )
+    , NOTIFICATION_HELD_ITEM(
+        "Held item found",
+        true, true, ImageAttachmentMode::JPG,
+        {"Notifs", "Showcase"}
+    )
     , NOTIFICATION_STATUS_UPDATE("Status Update", true, false, std::chrono::seconds(3600))
     , NOTIFICATIONS({
         &NOTIFICATION_SHINY,
+        &NOTIFICATION_HELD_ITEM,
         &NOTIFICATION_STATUS_UPDATE,
         &NOTIFICATION_PROGRAM_FINISH,
     })
@@ -253,6 +269,7 @@ WildRng::WildRng()
     PA_ADD_OPTION(MAX_BALL_THROWS);
     PA_ADD_OPTION(MAX_RARE_CANDIES);
     PA_ADD_OPTION(PROFILE);
+    PA_ADD_OPTION(STOP_ON_HELD_ITEM);
     PA_ADD_OPTION(TAKE_VIDEO);
     PA_ADD_OPTION(GO_HOME_WHEN_DONE);
     PA_ADD_OPTION(NOTIFICATIONS);
@@ -512,6 +529,31 @@ void WildRng::program(SingleSwitchProgramEnvironment& env, ProControllerContext&
         }else if(balls_thrown == 0){
             env.log("Failed catch.");
             continue;
+        }
+
+        if (STOP_ON_HELD_ITEM){
+            env.log("Checking for held item.");
+            open_party_menu_from_overworld(env.console, context, safari_zone ? StartMenuContext::SAFARI_ZONE : StartMenuContext::STANDARD);
+
+            PartyHeldItemDetector held_item_detector(COLOR_RED, &env.console.overlay(), ImageFloatBox(0.432, 0.15, 0.030, 0.63));
+            if (held_item_detector.detect(env.console.video().snapshot())){
+
+                env.log("Held item found!");
+                send_program_notification(
+                    env,
+                    NOTIFICATION_HELD_ITEM,
+                    COLOR_YELLOW,
+                    "Held item found!",
+                    {}, "",
+                    env.console.video().snapshot(),
+                    true
+                );
+                if (TAKE_VIDEO){
+                    pbf_press_button(context, BUTTON_CAPTURE, 2000ms, 0ms);
+                }
+
+                break;
+            }
         }
 
         go_to_summary(env.console, context, 0, safari_zone ? StartMenuContext::SAFARI_ZONE : StartMenuContext::STANDARD);
