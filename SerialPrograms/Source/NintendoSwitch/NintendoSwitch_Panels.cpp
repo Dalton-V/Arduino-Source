@@ -26,6 +26,7 @@
 #include "Programs/NintendoSwitch_SnapshotDumper.h"
 
 #include "Programs/NintendoSwitch_MenuStabilityTester.h"
+#include "DevPrograms/JoyconGyroTester.h"
 #include "DevPrograms/TestProgramComputer.h"
 #include "DevPrograms/TestProgramSwitch.h"
 #include "DevPrograms/JoyconProgram.h"
@@ -80,6 +81,7 @@ std::vector<PanelEntry> PanelListFactory::make_panels() const{
     if (STATIC_GLOBALS.DEVELOPER_MODE){
         ret.emplace_back("---- Developer Tools ----");
         ret.emplace_back(make_single_switch_program<MenuStabilityTester_Descriptor, MenuStabilityTester>());
+        ret.emplace_back(make_single_switch_program<JoyconGyroTester_Descriptor, JoyconGyroTester>());
         ret.emplace_back(make_computer_program<TestProgramComputer_Descriptor, TestProgramComputer>());
         ret.emplace_back(make_multi_switch_program<TestProgram_Descriptor, TestProgram>());
         ret.emplace_back(make_single_switch_program<JoyconProgram_Descriptor, JoyconProgram>());

@@ -12,6 +12,7 @@
 #include "Controllers/JoystickTools.h"
 //#include "NintendoSwitch/NintendoSwitch_Settings.h"
 #include "NintendoSwitch/Controllers/Procon/NintendoSwitch_ProController.h"
+#include "NintendoSwitch/Controllers/NintendoSwitch_GyroQuaternion.h"
 #include "NintendoSwitch_PABotBase2_Controller.h"
 
 namespace PokemonAutomation{
@@ -49,14 +50,26 @@ public:
 
     ControllerPlayerNumber get_player_number(Cancellable& cancellable);
 
-
 protected:
     static Button populate_report_buttons(
         OemController_State0x30_Buttons& buttons,
         const SwitchControllerState& controller_state
     );
-    static bool populate_report_gyro(
+    bool populate_report_gyro(
         OemController_State0x30_Gyro& gyro,
+        const SwitchControllerState& controller_state
+    );
+
+    bool populate_report_gyro(
+        OemController_State0x30_GyroQuaternion& gyro,
+        const SwitchControllerState& controller_state,
+        Milliseconds duration
+    );
+
+    void issue_motion_report(
+        Cancellable* cancellable,
+        WallDuration duration,
+        const OemController_State0x30_Buttons& buttons,
         const SwitchControllerState& controller_state
     );
 
@@ -69,9 +82,20 @@ protected:
         Cancellable* cancellable,
         WallDuration duration,
         const OemController_State0x30_Buttons& buttons,
+        const OemController_State0x30_GyroQuaternion& gyro
+    );
+    void issue_report(
+        Cancellable* cancellable,
+        WallDuration duration,
+        const OemController_State0x30_Buttons& buttons,
         const OemController_State0x30_Gyro& gyro
     );
-
+    void issue_report(
+        Cancellable* cancellable,
+        WallDuration duration,
+        const OemController_State0x30_Buttons& buttons,
+        const OemController_State0x30_GyroX3& gyro
+    );
 
 private:
     virtual void update_status(Cancellable& cancellable) override;
@@ -172,6 +196,9 @@ protected:
 
     std::string m_color_html;
     std::atomic<ControllerPlayerNumber> m_player_number;
+
+    uint64_t m_motion_timestamp_ms = 0;
+    GyroQuaternion m_rotation_state;
 };
 
 

@@ -4,6 +4,10 @@
  *
  */
 
+#include <algorithm>
+#include <cmath>
+#include <limits>
+#include <stdexcept>
 #include "Common/PABotBase2/Controllers/PABotBase2_Controller_NS1_OemController.h"
 #include "Common/Cpp/ColoredText.h"
 #include "Controllers/SerialPort/SerialPABotBase.h"
@@ -19,7 +23,36 @@ namespace NintendoSwitch{
 
 using namespace std::chrono_literals;
 
+namespace {
 
+// Factory calibration defaults. Physical values are converted to raw counts
+// only when the standard wire report is populated.
+constexpr double BaseAccelSensitivity = 4.0 / 16384.0;
+// Default factory calibration; raw counts to degrees/second.
+constexpr double BaseGyroSensitivity = 936.0 / 13371.0;
+
+int16_t to_wire_sensor_value(double value, double sensitivity){
+    if (!std::isfinite(value)){
+        throw std::invalid_argument("Gyro values must be finite.");
+    }
+
+    const double raw = value / sensitivity;
+    const double clamped = std::clamp(
+        raw,
+        static_cast<double>(std::numeric_limits<int16_t>::min()),
+        static_cast<double>(std::numeric_limits<int16_t>::max())
+    );
+    return static_cast<int16_t>(std::lround(clamped));
+}
+
+// See https://github.com/dekuNukem/Nintendo_Switch_Reverse_Engineering/issues/18#issuecomment-331324555
+//constexpr float BaseGyroSensitivity = 936.0f / (13371 - 0); // 13371 and 0 (offset, would technically need to be done for each axis) match the factory_motion_calibration value in the SPI flash
+//constexpr float BaseAccelSensitivity = 4.0f / (16384 - 0); // 16384 and 0 (offset, would technically need to be done for each axis) match the factory_motion_calibration value in the SPI flash
+//
+//constexpr float GyroSensitivities[] = { BaseGyroSensitivity / 8, BaseGyroSensitivity / 4, BaseGyroSensitivity / 2, BaseGyroSensitivity };
+//constexpr float AccelSensitivities[] = { BaseAccelSensitivity, BaseAccelSensitivity / 2, BaseAccelSensitivity / 4, BaseAccelSensitivity * 2 };
+
+}
 
 void PABotBase2_OemController::add_message_loggers(PABotBase2::MessageLogger& message_logger){
     using namespace PABotBase2;
@@ -431,28 +464,80 @@ Button PABotBase2_OemController::populate_report_buttons(
     }
     return all_buttons;
 }
+
 bool PABotBase2_OemController::populate_report_gyro(
     OemController_State0x30_Gyro& gyro,
     const SwitchControllerState& controller_state
 ){
-    gyro.accel_x = controller_state.gyro[0];
-    gyro.accel_y = controller_state.gyro[1];
-    gyro.accel_z = controller_state.gyro[2];
-    gyro.rotation_x = controller_state.gyro[3];
-    gyro.rotation_y = controller_state.gyro[4];
-    gyro.rotation_z = controller_state.gyro[5];
+    const GyroState& state = controller_state.gyro;
+    const bool gyro_active =
+        state.acceleration_g.x != 0 || state.acceleration_g.y != 0 || state.acceleration_g.z != 0 ||
+        state.angular_velocity_dps.x != 0 || state.angular_velocity_dps.y != 0 || state.angular_velocity_dps.z != 0;
 
-    bool gyro_active = false;
-    gyro_active |= gyro.accel_x != 0;
-    gyro_active |= gyro.accel_y != 0;
-    gyro_active |= gyro.accel_z != 0;
-    gyro_active |= gyro.rotation_x != 0;
-    gyro_active |= gyro.rotation_y != 0;
-    gyro_active |= gyro.rotation_z != 0;
-//    cout << "gyro_active = " << gyro_active << endl;
-    return gyro_active;
+    if (!gyro_active){
+        return false;
+    }
+
+    gyro.accel_x = to_wire_sensor_value(state.acceleration_g.x, BaseAccelSensitivity);
+    gyro.accel_y = to_wire_sensor_value(state.acceleration_g.y, BaseAccelSensitivity);
+    gyro.accel_z = to_wire_sensor_value(state.acceleration_g.z, BaseAccelSensitivity);
+    gyro.rotation_x = to_wire_sensor_value(state.angular_velocity_dps.x, BaseGyroSensitivity);
+    gyro.rotation_y = to_wire_sensor_value(state.angular_velocity_dps.y, BaseGyroSensitivity);
+    gyro.rotation_z = to_wire_sensor_value(state.angular_velocity_dps.z, BaseGyroSensitivity);
+    return true;
 }
 
+bool PABotBase2_OemController::populate_report_gyro(
+    OemController_State0x30_GyroQuaternion& gyro,
+    const SwitchControllerState& controller_state,
+    Milliseconds duration
+){
+    gyro = {};
+
+    const GyroState& state = controller_state.gyro;
+    const int16_t accel_x = to_wire_sensor_value(state.acceleration_g.x, BaseAccelSensitivity);
+    const int16_t accel_y = to_wire_sensor_value(state.acceleration_g.y, BaseAccelSensitivity);
+    const int16_t accel_z = to_wire_sensor_value(state.acceleration_g.z, BaseAccelSensitivity);
+    gyro.set_quat_accel_x0(accel_x);
+    gyro.set_quat_accel_y0(accel_y);
+    gyro.set_quat_accel_z0(accel_z);
+    gyro.set_quat_accel_x1(accel_x);
+    gyro.set_quat_accel_y1(accel_y);
+    gyro.set_quat_accel_z1(accel_z);
+    gyro.set_quat_accel_x2(accel_x);
+    gyro.set_quat_accel_y2(accel_y);
+    gyro.set_quat_accel_z2(accel_z);
+
+    m_rotation_state = integrate_angular_velocity(
+        m_rotation_state, state.angular_velocity_dps, duration
+    );
+    pack_quaternion(gyro, m_rotation_state, m_motion_timestamp_ms);
+    m_motion_timestamp_ms += static_cast<uint64_t>(duration.count());
+    return true;
+}
+
+
+
+
+void PABotBase2_OemController::issue_motion_report(
+    Cancellable* cancellable,
+    WallDuration duration,
+    const OemController_State0x30_Buttons& buttons,
+    const SwitchControllerState& controller_state
+){
+    // Zero angular velocity holds the existing orientation; it is not a
+    // sensor reset. Send full reports during pauses too so the firmware is
+    // explicitly given stationary motion, without relying on buttons-only
+    // commands to replace the previous gyro payload. Keep timestamps running.
+    Milliseconds remaining = std::chrono::duration_cast<Milliseconds>(duration);
+    while (remaining > Milliseconds::zero()){
+        const Milliseconds step = std::min(remaining, GYRO_REPORT_INTERVAL);
+        OemController_State0x30_GyroQuaternion gyro{};
+        populate_report_gyro(gyro, controller_state, step);
+        issue_report(cancellable, step, buttons, gyro);
+        remaining -= step;
+    }
+}
 
 void PABotBase2_OemController::issue_report(
     Cancellable* cancellable,
@@ -481,44 +566,66 @@ void PABotBase2_OemController::issue_report(
     Cancellable* cancellable,
     WallDuration duration,
     const OemController_State0x30_Buttons& buttons,
+    const OemController_State0x30_GyroQuaternion& gyro
+){
+    OemController_State0x30_GyroX3 gyro3{};
+    gyro3.quaternion = gyro;
+
+    issue_report(cancellable, duration, buttons, gyro3);
+}
+void PABotBase2_OemController::issue_report(
+    Cancellable* cancellable,
+    WallDuration duration,
+    const OemController_State0x30_Buttons& buttons,
     const OemController_State0x30_Gyro& gyro
 ){
     //  TODO: For now we duplicate the gyro data to all 3 5ms segments.
-    OemController_State0x30_GyroX3 gyro3{
-        gyro, gyro, gyro
-    };
+    OemController_State0x30_GyroX3 gyro3{};
+    gyro3.samples.time0 = gyro;
+    gyro3.samples.time1 = gyro;
+    gyro3.samples.time2 = gyro;
+
+    issue_report(cancellable, duration, buttons, gyro3);
+}
+void PABotBase2_OemController::issue_report(
+    Cancellable* cancellable,
+    WallDuration duration,
+    const OemController_State0x30_Buttons& buttons,
+    const OemController_State0x30_GyroX3& gyro
+){
+    OemController_State0x30_GyroX3 gyro3 = gyro;
 
 #if 0
     //  Purturb results to show the Switch that they are not stuck.
-    if (gyro3.time1.accel_x > 0){
-        gyro3.time0.accel_x--;
-        gyro3.time2.accel_x--;
-    }else if (gyro3.time1.accel_x < 0){
-        gyro3.time0.accel_x++;
-        gyro3.time2.accel_x++;
+    if (gyro3.samples.time1.accel_x > 0){
+        gyro3.samples.time0.accel_x--;
+        gyro3.samples.time2.accel_x--;
+    }else if (gyro3.samples.time1.accel_x < 0){
+        gyro3.samples.time0.accel_x++;
+        gyro3.samples.time2.accel_x++;
     }else{
-        gyro3.time0.accel_x--;
-        gyro3.time2.accel_x++;
+        gyro3.samples.time0.accel_x--;
+        gyro3.samples.time2.accel_x++;
     }
-    if (gyro3.time1.accel_y > 0){
-        gyro3.time0.accel_y--;
-        gyro3.time2.accel_y--;
-    }else if (gyro3.time1.accel_y < 0){
-        gyro3.time0.accel_y++;
-        gyro3.time2.accel_y++;
+    if (gyro3.samples.time1.accel_y > 0){
+        gyro3.samples.time0.accel_y--;
+        gyro3.samples.time2.accel_y--;
+    }else if (gyro3.samples.time1.accel_y < 0){
+        gyro3.samples.time0.accel_y++;
+        gyro3.samples.time2.accel_y++;
     }else{
-        gyro3.time0.accel_y--;
-        gyro3.time2.accel_y++;
+        gyro3.samples.time0.accel_y--;
+        gyro3.samples.time2.accel_y++;
     }
-    if (gyro3.time1.accel_z > 0){
-        gyro3.time0.accel_z--;
-        gyro3.time2.accel_z--;
-    }else if (gyro3.time1.accel_z < 0){
-        gyro3.time0.accel_z++;
-        gyro3.time2.accel_z++;
+    if (gyro3.samples.time1.accel_z > 0){
+        gyro3.samples.time0.accel_z--;
+        gyro3.samples.time2.accel_z--;
+    }else if (gyro3.samples.time1.accel_z < 0){
+        gyro3.samples.time0.accel_z++;
+        gyro3.samples.time2.accel_z++;
     }else{
-        gyro3.time0.accel_z--;
-        gyro3.time2.accel_z++;
+        gyro3.samples.time0.accel_z--;
+        gyro3.samples.time2.accel_z++;
     }
 #endif
 
