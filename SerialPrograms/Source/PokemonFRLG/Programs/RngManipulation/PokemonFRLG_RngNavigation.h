@@ -49,6 +49,7 @@ int auto_catch(
     ConsoleHandle& console, 
     ProControllerContext& context, 
     const uint64_t& max_ball_throws,
+    const Language& language,
     bool safari_zone = false
 );
 

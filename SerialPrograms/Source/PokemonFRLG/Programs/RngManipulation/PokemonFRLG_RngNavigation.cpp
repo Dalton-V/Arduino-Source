@@ -26,6 +26,7 @@
 #include "PokemonFRLG_BlindNavigation.h"
 #include "PokemonFRLG_RngCalibration.h"
 #include "PokemonFRLG_RngNavigation.h"
+#include "PokemonFRLG/Programs/PokemonFRLG_SafariOptimalAction.h"
 
 namespace PokemonAutomation{
 namespace NintendoSwitch{
@@ -273,7 +274,129 @@ int auto_catch(
                 pbf_move_left_joystick(context, {+1, 0}, 200ms, 800ms);
                 pbf_move_left_joystick(context, {+1, 0}, 200ms, 800ms);
             }
+
         }
+
+        // use ball
+        pbf_mash_button(context, BUTTON_A, 5s);
+    }
+
+    console.log("auto_catch(): ran out of balls.");
+    return 0;
+}
+
+int auto_catch_safari(
+    ConsoleHandle& console,
+    ProControllerContext& context,
+    Language language,
+    int balls_left
+){
+    float catch_coefficient = 1.0;
+    bool catch_detected = false;
+
+    WildEncounterReader reader(COLOR_RED);
+    VideoOverlaySet overlays(console.overlay());
+    reader.make_overlays(overlays);
+
+    console.log("Reading encounter...");
+    VideoSnapshot screen = console.video().snapshot();
+    PokemonFRLG_WildEncounter encounter = reader.read_encounter(console.logger(), language, screen, SAFARI_ZONE_POKEMON_SUBSET);
+    console.log("Encounter: " + encounter.name);
+
+    SafariOptimalAction safari_optimal_action(language);
+    auto actions = safari_optimal_action.get_optimal_actions(
+        console,
+        encounter.name,
+        balls_left
+    );
+    int action_count = 0;
+
+    std::vector<SafariBattleMenuOption> action_list;
+    if (actions.has_value())
+        action_list = actions->get();
+
+    for (uint64_t i = 0; i <= balls_left; i++){
+        int count = 0;
+        while (true){
+            if (count >= 10){
+                console.log("auto_catch(): failed to detect battle menu");
+                return -1;
+            }
+            count++;
+
+            BattleMenuWatcher battle_menu(COLOR_RED);
+            PartyMenuWatcher party_menu(COLOR_RED);
+            DexRegistrationWatcher dex_registration(COLOR_RED);
+            BlackScreenWatcher black_screen(COLOR_RED);
+            CatchFanfareDetector catch_detector(console.logger(), [&](float error_coefficient) -> bool{
+                catch_coefficient = error_coefficient;
+                return true;
+                });
+            context.wait_for_all_requests();
+            int ret = run_until<ProControllerContext>(
+                console, context,
+                [](ProControllerContext& context) {
+                    for (int i = 0; i < 60; i++){
+                        pbf_press_button(context, BUTTON_B, 200ms, 300ms);
+                    }
+                },
+                { battle_menu, party_menu, dex_registration, black_screen, catch_detector },
+                10ms
+            );
+
+            int start_ret;
+            switch (ret){
+            case 0:
+                console.log("Battle menu detected");
+                break;
+            case 1:
+                console.log("Party menu detected. Attempting to send out next Pokemon");
+                pbf_move_left_joystick(context, { 0, -1 }, 200ms, 300ms);
+                pbf_mash_button(context, BUTTON_A, 1000ms);
+                continue;
+            case 2:
+                console.log("Dex registration detected. Exiting battle...");
+                pbf_mash_button(context, BUTTON_B, 5000ms);
+                return catch_detected ? static_cast<int>(i) : 0;
+            case 3:
+                console.log("Black screen detected. Battle exited.");
+                pbf_mash_button(context, BUTTON_B, 2500ms);
+                return catch_detected ? static_cast<int>(i) : 0;
+            case 4:
+                console.log("Catch detected!", COLOR_BLUE);
+                catch_detected = true;
+                pbf_wait(context, 2000ms);
+                continue;
+            default:
+                console.log("No recognized state. Try checking if in the overworld...");
+                StartMenuWatcher start_menu;
+                context.wait_for_all_requests();
+                start_ret = run_until<ProControllerContext>(
+                    console, context,
+                    [](ProControllerContext& context) {
+                        for (int i = 0; i < 3; i++){
+                            pbf_press_button(context, BUTTON_PLUS, 200ms, 2800ms);
+                            pbf_mash_button(context, BUTTON_B, 500ms);
+                        }
+                    },
+                    { start_menu }
+                );
+                if (start_ret < 0){
+                    console.log("auto_catch(): no recognized state after 30 seconds.");
+                    return true;
+                }
+                console.log("Overworld detected.");
+                pbf_mash_button(context, BUTTON_B, 500ms);
+                context.wait_for_all_requests();
+                return catch_detected ? static_cast<int>(i) : 0;
+            }
+
+            break;
+        }
+
+        if (i == balls_left){ break; }
+
+        
 
         // use ball
         pbf_mash_button(context, BUTTON_A, 5s);
