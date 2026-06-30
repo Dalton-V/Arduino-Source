@@ -14,6 +14,7 @@
 #include "NintendoSwitch/Inference/NintendoSwitch_CheckOnlineDetector.h"
 #include "NintendoSwitch/Inference/NintendoSwitch_FailedToConnectDetector.h"
 #include "NintendoSwitch/Inference/NintendoSwitch_UpdatePopupDetector.h"
+#include "NintendoSwitch/Controllers/NintendoSwitch_GyroTests.h"
 #include "UnitTestRunner.h"
 
 #include "CommonTools/OCR/OCR_Tests.h"
@@ -43,6 +44,7 @@ UnitTestDatabase make_UNIT_TESTS_ALL(){
     NintendoSwitch::add_tests_CheckOnlineDetector(ret);
     NintendoSwitch::add_tests_FailedToConnectDetector(ret);
     NintendoSwitch::add_tests_UpdatePopupDetector(ret);
+    NintendoSwitch::add_tests_Gyro(ret);
     NintendoSwitch::PokemonFRLG::add_tests(ret);
     NintendoSwitch::PokemonRSE::add_tests(ret);
     NintendoSwitch::PokemonHome::add_tests(ret);

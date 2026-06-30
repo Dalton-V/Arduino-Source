@@ -26,6 +26,7 @@
 #include "Programs/NintendoSwitch_RecordKeyboardController.h"
 
 #include "Programs/NintendoSwitch_MenuStabilityTester.h"
+#include "DevPrograms/JoyconGyroTester.h"
 #include "DevPrograms/TestProgramComputer.h"
 #include "DevPrograms/TestProgramSwitch.h"
 #include "DevPrograms/JoyconProgram.h"
@@ -82,6 +83,7 @@ std::vector<PanelEntry> PanelListFactory::make_panels() const{
         ret.emplace_back(make_SingleSwitchProgram<MenuStabilityTester>());
         ret.emplace_back(make_ComputerProgram<TestProgramComputer>());
         ret.emplace_back(make_MultiSwitchProgram<TestProgram>());
+        ret.emplace_back(make_single_switch_program<JoyconGyroTester_Descriptor, JoyconGyroTester>());
         ret.emplace_back(make_SingleSwitchProgram<JoyconProgram>());
         ret.emplace_back(GameConsole::make_ConsoleProgram<GameConsole::WaterfillTemplateMaker>());
         ret.emplace_back(make_ComputerProgram<Pokemon::TrainIVCheckerOCR>());
