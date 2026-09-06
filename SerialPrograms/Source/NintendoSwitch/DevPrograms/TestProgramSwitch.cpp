@@ -176,6 +176,7 @@
 #include "PokemonSwSh/Inference/PokemonSwSh_MainMenuDetector.h"
 #include "PokemonSwSh/Programs/PokemonSwSh_MenuNavigation.h"
 #include "PokemonLGPE/Inference/Battles/PokemonLGPE_BattleArrowDetector.h"
+#include "PokemonBDSP/Inference/Battles/PokemonBDSP_ExperienceGainDetector.h"
 
 
 
@@ -342,6 +343,16 @@ void TestProgram::program(MultiSwitchProgramEnvironment& env, CancellableScope& 
     VideoOverlaySet overlays(overlay);
 
 
+
+    PokemonBDSP::ExperienceGainDetector detector;
+    detector.make_overlays(overlays);
+
+
+    auto snapshot = feed.snapshot();
+    cout << detector.detect(snapshot) << endl;
+
+
+
 #if 0
     size_t min_area = 100;
     std::string path = "test.png";
@@ -381,7 +392,7 @@ void TestProgram::program(MultiSwitchProgramEnvironment& env, CancellableScope& 
 #endif
 
 
-#if 1
+#if 0
 
     PokemonLGPE::BattleArrowDetector detector(COLOR_RED, {0.008121, 0.659091, 0.053364, 0.332645});
     detector.make_overlays(overlays);
