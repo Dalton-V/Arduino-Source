@@ -11,7 +11,6 @@ Add enum for ball ? Also, BDSP is reading from swsh data. Worth refactoring ?
 
 ideas for more checks :
 nature
-original game
 OT
 moves
 stats
