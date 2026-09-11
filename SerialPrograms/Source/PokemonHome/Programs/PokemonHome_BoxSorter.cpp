@@ -13,7 +13,6 @@ ideas for more checks :
 ability
 nature
 type
-original game
 OT
 moves
 stats
