@@ -10,16 +10,12 @@ Optimise the swapping algo
 Add enum for ball ? Also, BDSP is reading from swsh data. Worth refactoring ?
 
 ideas for more checks :
-ability
 nature
-type
-original game
 OT
 moves
 stats
 level
 surname
-language
 "stamps"
 */
 
