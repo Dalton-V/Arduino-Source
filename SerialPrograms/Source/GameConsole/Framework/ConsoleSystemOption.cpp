@@ -41,9 +41,9 @@ ConsoleSystemOption::ConsoleSystemOption(
         enable_input = false;
     }
 }
-JsonValue ConsoleSystemOption::to_json() const{
+JsonValue ConsoleSystemOption::to_json(const VideoSourceOption* video_snapshot) const{
     JsonObject root;
-    root[JSON_VIDEO] = m_video.to_json();
+    root[JSON_VIDEO] = video_snapshot ? video_snapshot->to_json() : m_video.to_json();
     root[JSON_AUDIO] = m_audio.to_json();
     root[JSON_OVERLAY] = m_overlay.to_json();
     if (m_controllers.size() == 1){

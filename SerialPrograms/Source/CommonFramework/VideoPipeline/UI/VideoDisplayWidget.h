@@ -91,6 +91,7 @@ public:
 protected:
     virtual void post_startup(VideoSource* source) override;
     virtual void pre_shutdown() override;
+    virtual void post_resolution_change(Resolution resolution) override;
 
     // Override QWidget::mouseDoubleClickEvent().
     // When double click, call move_to_new_window() to move to a new window to be ready for full screen.

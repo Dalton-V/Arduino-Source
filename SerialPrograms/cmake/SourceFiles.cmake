@@ -347,6 +347,25 @@ file(GLOB CORE_LIBRARY_SOURCES
 )
 
 file(GLOB LIBRARY_SOURCES
+    Source/CommonFramework/Capture/DirectShow/DirectShowCatalog.cpp
+    Source/CommonFramework/Capture/DirectShow/DirectShowCatalog.h
+    Source/CommonFramework/Capture/DirectShow/DirectShowVideoCapture.cpp
+    Source/CommonFramework/Capture/DirectShow/DirectShowVideoCapture.h
+    Source/CommonFramework/VideoPipeline/Backends/CameraVideoSource_DirectShow.cpp
+    Source/CommonFramework/VideoPipeline/Backends/CameraVideoSource_DirectShow.h
+    Source/CommonFramework/VideoPipeline/Backends/DirectShowFrameQt.cpp
+    Source/CommonFramework/VideoPipeline/Backends/DirectShowFrameQt.h
+    Source/CommonFramework/Capture/DirectShow/DirectShowSampleSink.cpp
+    Source/CommonFramework/Capture/DirectShow/DirectShowSampleSink.h
+    Source/CommonFramework/Capture/DirectShow/DirectShowDevice.cpp
+    Source/CommonFramework/Capture/DirectShow/DirectShowDevice.h
+    Source/CommonFramework/Capture/DirectShow/DirectShowMediaType.cpp
+    Source/CommonFramework/Capture/DirectShow/DirectShowMediaType.h
+    Source/CommonFramework/Capture/DirectShow/DirectShowNative.cpp
+    Source/CommonFramework/Capture/DirectShow/DirectShowNative.h
+    Source/CommonFramework/Capture/DirectShow/DirectShowSampleQueue.h
+    Source/CommonFramework/Capture/DirectShow/DirectShowTests.cpp
+    Source/CommonFramework/Capture/DirectShow/DirectShowTests.h
     ../3rdParty/ONNX/OnnxToolsPA.h
     ../3rdParty/QtWavFile/WavFile.cpp
     ../3rdParty/QtWavFile/WavFile.h

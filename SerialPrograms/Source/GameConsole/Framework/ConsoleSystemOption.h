@@ -37,7 +37,7 @@ public:
         std::unique_ptr<ConfigOption> extra_option = nullptr
     );
 
-    JsonValue to_json() const;
+    JsonValue to_json(const VideoSourceOption* video_snapshot = nullptr) const;
     void load_json(const JsonValue& json);
 
 

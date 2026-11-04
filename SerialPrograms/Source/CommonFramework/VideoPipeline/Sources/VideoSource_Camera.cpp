@@ -7,6 +7,9 @@
 #include "CommonFramework/VideoPipeline/Backends/CameraImplementations.h"
 #include "CommonFramework/VideoPipeline/VideoSource.h"
 #include "VideoSource_Camera.h"
+#ifdef _WIN32
+#include "CommonFramework/VideoPipeline/Backends/CameraVideoSource_DirectShow.h"
+#endif
 
 //#include <iostream>
 //using std::cout;
@@ -42,6 +45,14 @@ std::unique_ptr<VideoSource> VideoSourceDescriptor_Camera::make_VideoSource(
     VideoFormat format,
     FramesPerSecond fps
 ) const{
+#ifdef _WIN32
+    if (auto endpoint = DirectShow::parse_endpoint(m_info.device_name())){
+        if (endpoint->kind != DirectShow::EndpointKind::Video || !endpoint->pin.empty()){
+            throw std::invalid_argument("Unsupported DirectShow video endpoint.");
+        }
+        return std::make_unique<CameraVideoSource_DirectShow>(logger, endpoint->device, resolution, format, fps);
+    }
+#endif
 //    cout << "format = " << (int)format << endl;
     return get_camera_backend().make_video_source(
         logger,

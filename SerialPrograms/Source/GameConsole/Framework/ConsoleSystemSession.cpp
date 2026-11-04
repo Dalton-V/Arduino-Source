@@ -111,7 +111,9 @@ std::string ConsoleSystemSession::status() const{
 
 JsonValue ConsoleSystemSession::to_json() const{
     std::lock_guard<Mutex> lg(m_lock);
-    return m_option.to_json();
+    VideoSourceOption video;
+    m_video.save(video);
+    return m_option.to_json(&video);
 }
 void ConsoleSystemSession::load_json(const JsonValue& json){
     std::lock_guard<Mutex> lg(m_lock);

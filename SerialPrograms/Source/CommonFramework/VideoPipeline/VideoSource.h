@@ -62,6 +62,8 @@ public:
         return m_allow_watchdog_reset;
     }
 
+    // Asynchronous backends publish confirmed metadata with their first frame.
+    virtual bool has_async_metadata() const{ return false; }
     virtual Resolution current_resolution() const = 0;
     virtual VideoFormat current_format() const = 0;
     virtual FramesPerSecond current_fps() const = 0;

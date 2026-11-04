@@ -135,6 +135,11 @@ void VideoSession::save(VideoSourceOption& option) const{
     auto scope = m_sanitizer.check_scope();
     ReadSpinLock lg(m_state_lock, PA_CURRENT_FUNCTION);
     option = m_option;
+    if (m_video_source && m_video_source->has_async_metadata() && m_video_source->current_fps() != 0){
+        option.m_resolution = m_video_source->current_resolution();
+        option.m_format = m_video_source->current_format();
+        option.m_fps = m_video_source->current_fps();
+    }
 }
 void VideoSession::load(const VideoSourceOption& option){
     auto scope = m_sanitizer.check_scope();
@@ -225,13 +230,16 @@ void VideoSession::internal_reset(){
     m_logger.log("Resetting the video...", COLOR_GREEN);
     m_state_listeners.run_method(&StateListener::pre_shutdown);
 
-    Resolution resolution = m_option.m_resolution;
-    VideoFormat format = m_option.m_format;
-    FramesPerSecond fps = m_option.m_fps;
+    VideoSourceOption current;
+    save(current);
+    Resolution resolution = current.m_resolution;
+    VideoFormat format = current.m_format;
+    FramesPerSecond fps = current.m_fps;
     std::unique_ptr<VideoSource> source;
     {
         WriteSpinLock lg(m_state_lock, PA_CURRENT_FUNCTION);
         source = std::move(m_video_source);
+        m_async_source = nullptr;
     }
     if (source){
         source->remove_source_frame_listener(*this);
@@ -283,6 +291,7 @@ void VideoSession::internal_set_source(
     {
         WriteSpinLock lg(m_state_lock, PA_CURRENT_FUNCTION);
         source = std::move(m_video_source);
+        m_async_source = nullptr;
     }
     if (source){
         source->remove_source_frame_listener(*this);
@@ -322,7 +331,9 @@ void VideoSession::internal_set_source(
 void VideoSession::internal_set_resolution(Resolution resolution){
     auto scope = m_sanitizer.check_scope();
     m_logger.log("Changing resolution...", COLOR_GREEN);
-    if (m_option.m_resolution == resolution){
+    VideoSourceOption current;
+    save(current);
+    if (current.m_resolution == resolution){
         return;
     }
 
@@ -332,6 +343,7 @@ void VideoSession::internal_set_resolution(Resolution resolution){
     {
         WriteSpinLock lg(m_state_lock, PA_CURRENT_FUNCTION);
         source = std::move(m_video_source);
+        m_async_source = nullptr;
     }
     if (source){
         source->remove_source_frame_listener(*this);
@@ -342,7 +354,7 @@ void VideoSession::internal_set_resolution(Resolution resolution){
     source = m_descriptor->make_VideoSource(
         m_logger,
         resolution,
-        m_option.m_format,
+        current.m_format,
         0   //  Intentionally force the default FPS.
     );
     VideoFormat format = VideoFormat::OTHER;
@@ -371,7 +383,9 @@ void VideoSession::internal_set_resolution(Resolution resolution){
 void VideoSession::internal_set_format(VideoFormat format, FramesPerSecond fps){
     auto scope = m_sanitizer.check_scope();
     m_logger.log("Changing format...", COLOR_GREEN);
-    if (m_option.m_format == format && m_option.m_fps == fps){
+    VideoSourceOption current;
+    save(current);
+    if (current.m_format == format && current.m_fps == fps){
         return;
     }
 
@@ -381,6 +395,7 @@ void VideoSession::internal_set_format(VideoFormat format, FramesPerSecond fps){
     {
         WriteSpinLock lg(m_state_lock, PA_CURRENT_FUNCTION);
         source = std::move(m_video_source);
+        m_async_source = nullptr;
     }
     if (source){
         source->remove_source_frame_listener(*this);
@@ -388,7 +403,7 @@ void VideoSession::internal_set_format(VideoFormat format, FramesPerSecond fps){
         source.reset();
     }
 
-    source = m_descriptor->make_VideoSource(m_logger, m_option.m_resolution, format, fps);
+    source = m_descriptor->make_VideoSource(m_logger, current.m_resolution, format, fps);
     if (source){
         format = source->current_format();
         fps = source->current_fps();
@@ -503,6 +518,25 @@ void VideoSession::on_watchdog_timeout(){
 
 
 void VideoSession::on_frame(std::shared_ptr<const VideoFrame> frame){
+    bool metadata_changed = false;
+    Resolution resolution;
+    {
+        WriteSpinLock lg(m_state_lock, PA_CURRENT_FUNCTION);
+        if (m_video_source && m_video_source->has_async_metadata()){
+            resolution = m_video_source->current_resolution();
+            VideoFormat format = m_video_source->current_format();
+            FramesPerSecond fps = m_video_source->current_fps();
+            metadata_changed = m_async_source != m_video_source.get() || resolution != m_async_resolution ||
+                format != m_async_format || fps != m_async_fps;
+            m_async_source = m_video_source.get();
+            m_async_resolution = resolution;
+            m_async_format = format;
+            m_async_fps = fps;
+        }
+    }
+    if (metadata_changed){
+        m_state_listeners.run_method(&StateListener::post_resolution_change, resolution);
+    }
     m_frame_listeners.run_method(&VideoFrameListener::on_frame, frame);
     {
         WriteSpinLock lg(m_fps_lock, PA_CURRENT_FUNCTION);

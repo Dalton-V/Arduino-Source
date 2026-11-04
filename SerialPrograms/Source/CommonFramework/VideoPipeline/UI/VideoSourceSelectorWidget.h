@@ -38,6 +38,7 @@ private:
     //  This also includes after the video resolution is changed as we need to rebuild the video
     //  source with the new resolution.
     virtual void post_startup(VideoSource* source) override;
+    virtual void post_resolution_change(Resolution resolution) override;
 
 
 private:
@@ -50,6 +51,7 @@ private:
     QPushButton* m_reset_button;
 
     std::vector<std::shared_ptr<VideoSourceDescriptor>> m_sources;
+    std::vector<std::string> m_camera_ids;
     std::vector<
         std::pair<
             Resolution,

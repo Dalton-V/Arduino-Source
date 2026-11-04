@@ -192,6 +192,26 @@ include(cmake/CoreLib.cmake)
 
 # Create the GUI library
 add_library(SerialProgramsLib STATIC ${CORE_LIBRARY_SOURCES} ${LIBRARY_SOURCES})
+if(WIN32)
+    target_link_libraries(SerialProgramsLib PRIVATE ole32 oleaut32 strmiids)
+    # Explicit opt-in diagnostic. It opens only OBS Virtual Camera and has
+    # no dependency on Qt, OpenCV, or the application's multimedia backend.
+    add_executable(DirectShowProbe EXCLUDE_FROM_ALL
+        Source/Tests/DirectShowProbe.cpp
+        Source/CommonFramework/Capture/DirectShow/DirectShowDevice.cpp
+        Source/CommonFramework/Capture/DirectShow/DirectShowNative.cpp
+        Source/CommonFramework/Capture/DirectShow/DirectShowMediaType.cpp
+        Source/CommonFramework/Capture/DirectShow/DirectShowSampleSink.cpp
+        ../Common/Cpp/Strings/Unicode.cpp
+    )
+    target_include_directories(DirectShowProbe PRIVATE .. Source)
+    target_compile_features(DirectShowProbe PRIVATE cxx_std_23)
+    target_link_libraries(DirectShowProbe PRIVATE ole32 oleaut32 strmiids)
+    set_target_properties(DirectShowProbe PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
+    if(MSVC)
+        target_compile_options(DirectShowProbe PRIVATE /W4 /WX /utf-8)
+    endif()
+endif()
 
 
 # Create binary target

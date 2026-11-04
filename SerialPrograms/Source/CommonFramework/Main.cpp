@@ -30,6 +30,9 @@
 #include "Integrations/DppIntegration/DppClient.h"
 #include "Integrations/DiscordWebhook.h"
 #include "VideoPipeline/Backends/MediaServicesQt6.h"
+#ifdef _WIN32
+#include "Capture/DirectShow/DirectShowCatalog.h"
+#endif
 #include "ErrorReports/ProgramDumper.h"
 #include "ErrorReports/ErrorReports.h"
 #include "Environment/HardwareValidation.h"
@@ -317,6 +320,9 @@ int main(int argc, char *argv[]){
     global_input_stop();
 
     //  Stop misc. services.
+#ifdef _WIN32
+    DirectShow::stop_video_catalog();
+#endif
     Integration::DiscordWebhook::DiscordWebhookSender::instance().stop();
     SystemSleepController::instance().stop();
     global_periodic_runner().stop();

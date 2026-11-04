@@ -17,6 +17,8 @@
 #include "CommonFramework/VideoPipeline/Sources/VideoSource_Null.h"
 #include "CommonFramework/VideoPipeline/Sources/VideoSource_Camera.h"
 
+#include <QTimer>
+#include <QAbstractItemView>
 #include "VideoSourceSelectorWidget.h"
 
 //#include <iostream>
@@ -121,6 +123,19 @@ VideoSourceSelectorWidget::VideoSourceSelectorWidget(Logger& logger, VideoSessio
     );
 
     m_session.add_state_listener(*this);
+#ifdef _WIN32
+    auto* catalog_timer = new QTimer(this);
+    connect(catalog_timer, &QTimer::timeout, this, [this]{
+        std::vector<std::string> ids;
+        for (const auto& camera : get_all_cameras()){
+            ids.push_back(camera.device_name());
+        }
+        if (ids != m_camera_ids && !m_sources_box->view()->isVisible()){
+            update_source_list();
+        }
+    });
+    catalog_timer->start(1000);
+#endif
 }
 
 
@@ -141,7 +156,9 @@ void VideoSourceSelectorWidget::update_source_list(){
     }
 
     //  Now add all the cameras.
+    m_camera_ids.clear();
     for (const CameraInfo& info : get_all_cameras()){
+        m_camera_ids.push_back(info.device_name());
         m_sources.emplace_back(std::make_unique<VideoSourceDescriptor_Camera>(info));
     }
 
@@ -156,7 +173,12 @@ void VideoSourceSelectorWidget::update_source_list(){
     if (index >= 0){
         m_sources_box->setCurrentIndex((int)index);
     }else{
-        m_logger.log("Unable to find entry for this source.", COLOR_RED);
+        // Keep a disconnected selection visible while discovery refreshes.
+        VideoSourceOption option;
+        m_session.save(option);
+        m_sources.push_back(option.descriptor());
+        m_sources_box->addItem(QString::fromStdString(option.descriptor()->display_name()));
+        m_sources_box->setCurrentIndex(static_cast<int>(m_sources.size() - 1));
     }
 
     //  Name the reset button after whatever the selected source actually is.
@@ -178,6 +200,10 @@ void VideoSourceSelectorWidget::update_resolution_list(){
     m_session.current_stream_format(current_resolution, current_format, current_fps);
 
     VideoFormatSet format_set = m_session.supported_formats();
+    if (format_set.empty()){
+        // An asynchronous camera is still negotiating its stream.
+        return;
+    }
 
     for (auto& resolution : format_set){
         if (resolution.second.empty()){
@@ -254,6 +280,10 @@ void VideoSourceSelectorWidget::update_resolution_list(){
 
 
 
+
+void VideoSourceSelectorWidget::post_resolution_change(Resolution){
+    QMetaObject::invokeMethod(this, [this]{ update_resolution_list(); }, Qt::QueuedConnection);
+}
 
 void VideoSourceSelectorWidget::post_startup(VideoSource* source){
     QMetaObject::invokeMethod(this, [this]{

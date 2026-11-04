@@ -46,7 +46,8 @@ public:
         virtual void post_shutdown(){}
         //  Currently not called by VideoSession yet.
         virtual void pre_resolution_change(Resolution resolution){}
-        //  Currently not called by VideoSession yet.
+        //  Asynchronous sources report their negotiated stream metadata here.
+        //  Callbacks must queue UI work; capture does not wait on the UI thread.
         virtual void post_resolution_change(Resolution resolution){}
     };
 
@@ -243,6 +244,12 @@ private:
 
     std::shared_ptr<const VideoSourceDescriptor> m_descriptor;
     std::unique_ptr<VideoSource> m_video_source;
+    // Confirmed asynchronous metadata, guarded by m_state_lock. The capture
+    // worker never mutates the caller-owned serializable option object.
+    VideoSource* m_async_source = nullptr;
+    Resolution m_async_resolution;
+    VideoFormat m_async_format = VideoFormat::OTHER;
+    FramesPerSecond m_async_fps = 0;
 
     //  We need to queue up all reset commands and run them on the main thread.
     //  This is needed to prevent re-entrant calls from event processing.

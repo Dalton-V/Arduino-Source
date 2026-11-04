@@ -167,6 +167,14 @@ void VideoDisplayWidget::post_startup(VideoSource* source){
         }
     });
 }
+void VideoDisplayWidget::post_resolution_change(Resolution){
+    QMetaObject::invokeMethod(this, [this]{
+        Resolution current = m_video_session.current_resolution();
+        if (current){
+            set_aspect_ratio(current.aspect_ratio());
+        }
+    }, Qt::QueuedConnection);
+}
 void VideoDisplayWidget::pre_shutdown(){
 //    cout << "pre_shutdown()" << endl;
     run_on_object_thread_and_wait(this, [&]{

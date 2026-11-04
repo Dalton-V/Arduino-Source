@@ -10,6 +10,9 @@
 #include "CommonFramework/GlobalSettingsPanel.h"
 #include "CommonFramework/VideoPipeline/VideoPipelineOptions.h"
 #include "CameraImplementations.h"
+#ifdef _WIN32
+#include "CommonFramework/Capture/DirectShow/DirectShowCatalog.h"
+#endif
 
 //#include <iostream>
 //using std::cout;
@@ -118,9 +121,24 @@ std::vector<CameraInfo> get_all_cameras(){
 //    WallClock end = current_time();
 //    double seconds = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() / 1000.;
 //    global_logger_tagged().log("Done loading camera list... " + tostr_fixed(seconds, 3) + " seconds");
+#ifdef _WIN32
+    for (const auto& device : DirectShow::cached_video_devices().devices){
+        ret.emplace_back(DirectShow::serialize_endpoint({device.key, DirectShow::EndpointKind::Video, {}}));
+    }
+#endif
     return ret;
 }
 std::string get_camera_name(const CameraInfo& info){
+#ifdef _WIN32
+    if (auto endpoint = DirectShow::parse_endpoint(info.device_name())){
+        for (const auto& device : DirectShow::cached_video_devices().devices){
+            if (device.key == endpoint->device){
+                return device.name + " (DirectShow)";
+            }
+        }
+        return "Unavailable camera (DirectShow)";
+    }
+#endif
     const CameraBackend& backend = get_camera_backend();
 //    global_logger_tagged().log("Start reading camera name...");
 //    WallClock start = current_time();
